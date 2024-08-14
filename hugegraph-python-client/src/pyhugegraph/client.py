@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Optional
+from typing import Any, Callable, Optional, TypeVar
 
 from pyhugegraph.api.auth import AuthManager
 from pyhugegraph.api.graph import GraphManager
@@ -30,6 +30,20 @@ from pyhugegraph.api.version import VersionManager
 from pyhugegraph.utils.huge_config import HGraphConfig
 from pyhugegraph.utils.huge_requests import HGraphSession
 
+T = TypeVar("T")
+
+
+def manager_builder(fn: Callable[[Any, "HGraphSession"], T]) -> Callable[[Any], T]:
+    attr_name = "_lazy_" + fn.__name__
+
+    def wrapper(self: "PyHugeClient") -> T:
+        if not hasattr(self, attr_name):
+            session = HGraphSession(self.cfg)
+            setattr(self, attr_name, fn(self)(session))
+        return getattr(self, attr_name)
+
+    return wrapper
+
 
 class PyHugeClient:
     def __init__(
@@ -39,62 +53,50 @@ class PyHugeClient:
         graph: str,
         user: str,
         pwd: str,
+        graphspace: Optional[str] = None,
         timeout: int = 10,
-        gs: Optional[str] = None,
     ):
-        self._cfg = HGraphConfig(ip, port, user, pwd, graph, gs, timeout)
+        self.cfg = HGraphConfig(ip, port, user, pwd, graph, graphspace, timeout)
 
-    @staticmethod
-    def _builder(fn):
-        attr_name = "_lazy_" + fn.__name__
-
-        def wrapper(self: "PyHugeClient"):
-            if not hasattr(self, attr_name):
-                session = HGraphSession(self._cfg)
-                setattr(self, attr_name, fn(self)(session))
-            return getattr(self, attr_name)
-
-        return wrapper
-
-    @_builder
-    def schema(self) -> SchemaManager:
+    @manager_builder
+    def schema(self) -> "SchemaManager":
         return SchemaManager
 
-    @_builder
-    def gremlin(self) -> GremlinManager:
+    @manager_builder
+    def gremlin(self) -> "GremlinManager":
         return GremlinManager
 
-    @_builder
-    def graph(self) -> GraphManager:
+    @manager_builder
+    def graph(self) -> "GraphManager":
         return GraphManager
 
-    @_builder
-    def graphs(self) -> GraphsManager:
+    @manager_builder
+    def graphs(self) -> "GraphsManager":
         return GraphsManager
 
-    @_builder
-    def variable(self) -> VariableManager:
+    @manager_builder
+    def variable(self) -> "VariableManager":
         return VariableManager
 
-    @_builder
-    def auth(self) -> AuthManager:
+    @manager_builder
+    def auth(self) -> "AuthManager":
         return AuthManager
 
-    @_builder
-    def task(self) -> TaskManager:
+    @manager_builder
+    def task(self) -> "TaskManager":
         return TaskManager
 
-    @_builder
-    def metrics(self) -> MetricsManager:
+    @manager_builder
+    def metrics(self) -> "MetricsManager":
         return MetricsManager
 
-    @_builder
-    def traverser(self) -> TraverserManager:
+    @manager_builder
+    def traverser(self) -> "TraverserManager":
         return TraverserManager
 
-    @_builder
-    def version(self) -> VersionManager:
+    @manager_builder
+    def version(self) -> "VersionManager":
         return VersionManager
 
     def __repr__(self) -> str:
-        return f"{self._cfg}"
+        return f"{self.cfg}"
